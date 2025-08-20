@@ -1,0 +1,832 @@
+ <!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Binder • Teaching Tools</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&family=Sora:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1020;
+  --glass:#0f1a33cc;
+  --glass-hi:#132246cc;
+  --ink:#e9efff;
+  --muted:#94a3b8;
+  --brand:#6ea8ff;
+  --accent:#a78bfa;
+  --ring: rgba(110,168,255,.45);
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --radius: 18px;
+  --tab-h: 72px;
+  --blur: 20px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:linear-gradient(180deg,#080c18,#0b1020 35%,#0a1226);color:var(--ink);font-family:'DM Sans','Sora',system-ui,-apple-system,Segoe UI,Roboto}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+::selection{background:#1f2d5a;color:#fff}
+
+/* ===== custom morphing cursor (flat, no glow) ===== */
+body{cursor:none}
+.cursor{
+  position:fixed; left:0; top:0; width:18px; height:18px; z-index:2000; pointer-events:none;
+  background:#cbd5ff; border-radius:50%; transform:translate(-50%,-50%);
+  transition: width .08s ease, height .08s ease, border-radius .08s ease, background .12s ease, opacity .15s ease;
+  opacity:.95;
+}
+.cursor[data-mode="text"]{
+  width:3px; height:24px; border-radius:2px; background:#cbd5ff;
+}
+.cursor[data-mode="select"]{
+  width:18px; height:18px; border-radius:0;
+  background:conic-gradient(from 0deg,#cbd5ff 0 25%, transparent 25% 50%, #cbd5ff 50% 75%, transparent 75% 100%);
+  -webkit-mask: radial-gradient(circle 9px at 50% 50%, #0000 7px, #000 7px);
+          mask: radial-gradient(circle 9px at 50% 50%, #0000 7px, #000 7px);
+}
+.cursor.fade{opacity:.3}
+
+/* ===== Top bar ===== */
+.topbar{
+  position:sticky; top:0; z-index:1000;
+  display:flex; align-items:center; gap:12px;
+  padding:10px 14px; height:64px;
+  background:linear-gradient(180deg,rgba(10,18,38,.8),rgba(10,18,38,.35));
+  border-bottom:1px solid rgba(255,255,255,.07);
+  backdrop-filter: blur(16px);
+}
+.brand{display:flex; align-items:center; gap:10px; padding-right:10px; border-right:1px solid rgba(255,255,255,.08)}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:conic-gradient(from 0deg at 50% 50%, var(--brand), var(--accent))}
+.brand .title{font-weight:800;letter-spacing:.3px}
+
+.search{
+  margin-left:12px; flex:1; max-width:560px;
+  display:flex; align-items:center; gap:10px;
+  background:linear-gradient(180deg, var(--glass), var(--glass-hi));
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:999px; padding:10px 14px; box-shadow:var(--shadow);
+  transition: box-shadow .25s ease, transform .25s ease;
+}
+.search:focus-within{ box-shadow:0 0 0 6px var(--ring), var(--shadow); transform:translateY(-1px) }
+.search input{ border:0; outline:none; flex:1; background:transparent; color:var(--ink); font-size:15px; }
+.search .kbd{ font-size:12px; color:var(--muted); border-left:1px solid rgba(255,255,255,.12); padding-left:10px; opacity:.9; }
+
+/* ===== Binder Tabs ===== */
+.binder{
+  position:sticky; top:64px; z-index:900;
+  display:flex; gap:12px; padding:12px 14px;
+  background:linear-gradient(180deg, rgba(10,18,38,.7), rgba(10,18,38,.25));
+  backdrop-filter: blur(14px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.tab{
+  height:var(--tab-h);
+  min-width: 220px; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  padding:0 18px; border-radius:16px;
+  background:linear-gradient(180deg,var(--glass),var(--glass-hi));
+  border:1px solid rgba(255,255,255,.12);
+  color:var(--ink); font-weight:800; letter-spacing:.2px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur));
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), filter .28s ease, opacity .28s ease, border-color .2s ease;
+  position:relative; overflow:hidden; perspective:800px;
+}
+.tab.active{ outline:0; border-color: rgba(110,168,255,.45); transform: translateY(-2px) scale(1.02) }
+.tab.shrunk{ transform: translateY(0) scale(.8); opacity:.85; filter:saturate(.85) }
+.tab.left{ transform: translateX(-8px) scale(.8) }
+.tab.right{ transform: translateX(8px) scale(.8) }
+
+/* ===== Content Area ===== */
+.container{max-width:1400px; margin:20px auto; padding: 0 16px}
+.panel{ display:none; animation: fadeSlide .35s ease both }
+.panel.active{ display:block }
+@keyframes fadeSlide{ from{opacity:0; transform: translateY(8px)} to{opacity:1; transform: translateY(0)} }
+
+.grid{
+  display:grid; gap:16px;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+}
+@media (max-width:1280px){ .grid{grid-template-columns: repeat(3,1fr)} }
+@media (max-width:900px){ .grid{grid-template-columns: repeat(2,1fr)} }
+@media (max-width:620px){ .grid{grid-template-columns: 1fr} }
+
+/* ===== Tool Card ===== */
+.card{
+  position:relative; isolation:isolate;
+  min-height:240px;
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(19,34,70,.75), rgba(19,34,70,.55));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  padding:14px; display:flex; flex-direction:column; gap:10px;
+  transition: transform .22s ease, box-shadow .2s ease, border-color .2s ease, background .25s ease, filter .2s ease;
+  overflow:hidden; transform-style:preserve-3d;
+}
+.card:hover{ transform: translateY(-6px) rotateX(3deg) rotateY(-2deg); box-shadow:0 18px 40px rgba(0,0,0,.4); border-color:rgba(255,255,255,.2)}
+.card:active{ transform: translateY(-2px) }
+.card:focus-visible{ outline:3px solid var(--ring) }
+
+.card h3{margin:0; font-size:18px; line-height:1.2; letter-spacing:.2px}
+.card p{margin:0; color:#d5def7; font-size:14px; line-height:1.45; flex:1}
+.badge{
+  align-self:flex-start; font-size:11px; padding:6px 10px; border-radius:999px;
+  background:linear-gradient(180deg, rgba(110,168,255,.2), rgba(167,139,250,.2));
+  border:1px solid rgba(255,255,255,.14);
+  letter-spacing:.3px; color:#ccdcff; font-weight:800
+}
+.kws{ font-size:12px; color:var(--muted) }
+
+.tip{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  font-size:12px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
+  padding:6px 10px; border-radius:10px; opacity:0; transition: opacity .15s ease; pointer-events:none
+}
+.card:hover .tip{opacity:1}
+
+.actions{ display:flex; gap:8px }
+.btn{
+  border:1px solid rgba(255,255,255,.14); background:linear-gradient(180deg,var(--glass),var(--glass-hi));
+  padding:8px 12px; border-radius:12px; font-weight:800; letter-spacing:.2px; color:#e9efff;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .2s ease;
+}
+.btn:hover{ transform: translateY(-1px); box-shadow:0 10px 26px rgba(0,0,0,.35); border-color:rgba(255,255,255,.22) }
+.btn.secondary{ opacity:.9 }
+
+/* star fav */
+.fav{
+  position:absolute; top:10px; right:10px; z-index:3;
+  width:34px; height:34px; display:grid; place-items:center;
+  border-radius:12px; border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(180deg, rgba(20,36,78,.9), rgba(20,36,78,.7));
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.fav:hover{ transform: scale(1.06) rotate(10deg); box-shadow:0 8px 18px rgba(0,0,0,.35)}
+.fav.active{ background:linear-gradient(180deg, #ffef98, #ffd166); color:#222; border-color: rgba(255,214,102,.8) }
+
+/* about drawer inside card */
+.about{
+  display:none; margin-top:8px; padding:10px; border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+  border:1px solid rgba(255,255,255,.12);
+}
+.gen-footer{
+  margin-top:8px; padding:8px; border-radius:10px; text-align:center; font-weight:900;
+  background:linear-gradient(90deg, var(--brand), var(--accent)); background-size:200% 100%;
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  animation: flow 3s linear infinite;
+}
+@keyframes flow{0%{background-position:0 0}100%{background-position:200% 0}}
+
+/* ===== Originality warning (inline modal) ===== */
+.warn-wrap{
+  position: fixed; inset: 0; display:none; place-items: center; z-index:1200;
+  background: radial-gradient(60% 60% at 50% 40%, rgba(10,18,38,.85), rgba(10,18,38,.65));
+  backdrop-filter: blur(8px);
+}
+.warn{
+  width:min(520px,90vw);
+  background:linear-gradient(180deg, rgba(255,209,102,.15), rgba(255,239,152,.08));
+  border:1px solid rgba(255,239,152,.35);
+  color:#fff; box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  border-radius:18px; padding:18px;
+}
+.warn h3{margin:4px 0 10px 0}
+.warn p{margin:0; color:#fff}
+.warn .note{color:#2b2b2b; font-weight:800; background:#ffef98; border-radius:10px; padding:6px 10px; display:inline-block; margin:10px 0}
+.warn .controls{display:flex; gap:10px; justify-content:flex-end; margin-top:14px}
+.warn .controls .btn{background:#0e1c3c; border-color:#314a89}
+
+/* ===== Footer ===== */
+footer{
+  margin-top:24px; text-align:center; padding:28px 14px; position:relative; overflow:hidden;
+  background:linear-gradient(180deg,rgba(10,18,38,.6),rgba(10,18,38,.25));
+  border-top:1px solid rgba(255,255,255,.08); backdrop-filter: blur(10px);
+}
+footer .line-1{font-weight:900; letter-spacing:.3px}
+footer .line-2{ margin-top:6px; font-weight:800; color:#cbd5ff;}
+
+/* ===== Search Overlay ===== */
+.search-overlay{
+  position:fixed; inset:0; z-index:1500; display:none;
+  background:linear-gradient(180deg, rgba(8,12,24,.95), rgba(9,14,28,.92));
+  backdrop-filter: blur(10px);
+}
+.search-overlay.active{display:block}
+.so-top{
+  display:flex; align-items:center; gap:10px; padding:16px; border-bottom:1px solid rgba(255,255,255,.08);
+}
+.so-input{
+  flex:1; display:flex; align-items:center; gap:10px;
+  background:linear-gradient(180deg, var(--glass), var(--glass-hi));
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 14px;
+}
+.so-input input{flex:1; background:transparent; border:0; outline:none; color:var(--ink); font-size:16px}
+.so-close{border:1px solid rgba(255,255,255,.14); background:transparent; color:#e9efff; border-radius:10px; padding:8px 10px}
+.so-body{padding:16px}
+.so-filters{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px}
+.chip{
+  border:1px solid rgba(255,255,255,.16); padding:6px 10px; border-radius:999px; font-size:12px;
+  background:rgba(255,255,255,.06);
+}
+.chip.active{background:rgba(110,168,255,.2); border-color:rgba(110,168,255,.5)}
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="brand">
+    <div class="dot"></div>
+    <div class="title">Binder • Teaching Tools</div>
+  </div>
+
+  <!-- Search -->
+  <div class="search" id="searchBox" title="Search across all tools">
+    <span aria-hidden="true">🔎</span>
+    <input id="searchInput" placeholder="search everything… (press /)" />
+    <div class="kbd">/ to search</div>
+  </div>
+</div>
+
+<!-- Binder Tabs -->
+<div class="binder" id="binder">
+  <button class="tab" data-tab="favorites"><span class="emoji">⭐</span> Favorites</button>
+  <button class="tab" data-tab="plan"><span class="emoji">📒</span> Planning <small>(Decks/Docs)</small></button>
+  <button class="tab" data-tab="assess"><span class="emoji">📝</span> Assessment <small>(Quizzes/Checks)</small></button>
+  <button class="tab" data-tab="diff"><span class="emoji">🌈</span> Differentiation <small>(Level/Adapt)</small></button>
+  <button class="tab" data-tab="integrity"><span class="emoji">🛡️</span> Integrity <small>(Originality)</small></button>
+  <button class="tab" data-tab="create"><span class="emoji">🎨</span> Creation <small>(Text/Images)</small></button>
+</div>
+
+<!-- Content Panels -->
+<div class="container">
+  <section id="panel-favorites"  class="panel active"><div class="grid" id="grid-favorites"></div></section>
+  <section id="panel-plan"  class="panel"><div class="grid" id="grid-plan"></div></section>
+  <section id="panel-assess" class="panel"><div class="grid" id="grid-assess"></div></section>
+  <section id="panel-diff"   class="panel"><div class="grid" id="grid-diff"></div></section>
+  <section id="panel-integrity" class="panel"><div class="grid" id="grid-integrity"></div></section>
+  <section id="panel-create" class="panel"><div class="grid" id="grid-create"></div></section>
+</div>
+
+<!-- Originality inline warning -->
+<div class="warn-wrap" id="warnWrap" role="dialog" aria-modal="true" aria-labelledby="warnTitle">
+  <div class="warn">
+    <h3 id="warnTitle">⚠️ important note about originality/similarity checkers</h3>
+    <p>These tools can produce <b>false positives</b> and should never be the sole basis for decisions. Always corroborate with drafts and conversation.</p>
+    <span class="note">use as one signal among many — not a verdict.</span>
+    <div class="controls">
+      <button class="btn secondary" id="warnClose">dismiss</button>
+      <button class="btn" id="warnContinue">continue to tool</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full-screen Search Overlay -->
+<div class="search-overlay" id="searchOverlay">
+  <div class="so-top">
+    <div class="so-input">
+      <span>🔎</span>
+      <input id="overlaySearch" placeholder="type to search all tools…">
+    </div>
+    <button class="so-close" id="overlayClose">esc</button>
+  </div>
+  <div class="so-body">
+    <div class="so-filters" id="soFilters"></div>
+    <div class="grid" id="soResults"></div>
+  </div>
+</div>
+
+<footer>
+  <div class="line-1">made with ❤️ by Mule Time Media</div>
+  <div class="line-2">version 2.1.6</div>
+</footer>
+
+<script>
+/* ====================== Data: AI-only tools ====================== */
+const tools = [
+  /* Planning */
+  {id:'t1', name:'Canva for Education', category:'plan',
+    url:'https://www.canva.com/education/',
+    desc:'Design slides, handouts, worksheets, and infographics using classroom-safe templates. Collaborate with students, export to PPT/PDF, and integrate brand kits while AI suggests layouts and imagery.',
+    keywords:['slides','design','worksheets','templates','presentations','graphics','education']},
+  {id:'t2', name:'Google Slides', category:'plan',
+    url:'https://slides.google.com/',
+    desc:'Create accessible slide decks that sync across devices, embed videos, and collaborate live. Presenter notes, Q&A mode, and integrations with Classroom make delivery effortless.',
+    keywords:['slides','presentation','google','deck','classroom']},
+  {id:'t3', name:'Gamma', category:'plan',
+    url:'https://gamma.app/',
+    desc:'Generate beautifully structured decks and docs from prompts. AI formats sections, applies themes, and exports cleanly to PDF/PowerPoint for instant lesson visuals.',
+    keywords:['slides','ai slides','presentations','generator']},
+  {id:'t4', name:'Syllabus Maker (MagicSchool)', category:'plan',
+    url:'https://www.magicschool.ai/',
+    desc:'Draft course syllabi with outcomes, pacing, assessments, and policies using AI. Customize tone, standards alignment, and export for LMS upload.',
+    keywords:['syllabus','planning','curriculum','pacing','ai']},
+  {id:'t5', name:'Brisk Teaching', category:'plan',
+    url:'https://www.briskteaching.com/',
+    desc:'Teacher-first AI planning: turn standards into daily objectives, generate exemplars, and differentiate reading levels. Exports to Google Docs and Slides with one click.',
+    keywords:['planning','standards','slides','docs','differentiation']},
+  {id:'t6', name:'Notion (Education)', category:'plan',
+    url:'https://www.notion.so/product/education',
+    desc:'Plan units, store resources, and auto-summarize readings with AI. Databases track lessons, checkpoints, and accommodations for an organized teaching brain.',
+    keywords:['planning','notes','database','ai','summarize']},
+
+  /* Assessment */
+  {id:'t10', name:'Google Forms', category:'assess',
+    url:'https://forms.google.com/',
+    desc:'Build self-grading quizzes with branching, images, and response validation. Auto-send feedback, export to Sheets, and reuse item banks across units.',
+    keywords:['quiz','forms','google','self-grading','survey']},
+  {id:'t11', name:'Microsoft Forms', category:'assess',
+    url:'https://forms.office.com/',
+    desc:'Quickly assemble quizzes and polls inside the Microsoft ecosystem. AI suggestions craft items, insights flag trends, and exports feed OneNote/Excel flows.',
+    keywords:['quiz','forms','microsoft','survey','assessment']},
+  {id:'t12', name:'Quizizz', category:'assess',
+    url:'https://quizizz.com/',
+    desc:'Live or homework quiz games with memes and music. Massive library of teacher-made sets, standards tags, and automatic mastery reports.',
+    keywords:['quiz','games','homework','reports']},
+  {id:'t13', name:'Kahoot!', category:'assess',
+    url:'https://kahoot.com/schools-u/',
+    desc:'Fast-paced quiz competitions that spark energy. Build polls, word clouds, and puzzles, then track understanding in detailed post-game analytics.',
+    keywords:['quiz','games','puzzle','polls']},
+  {id:'t14', name:'Quizlet', category:'assess',
+    url:'https://quizlet.com/',
+    desc:'Flashcards that evolve into tests, matching games, and AI-generated questions. Students practice with spaced repetition and teacher-mode class sets.',
+    keywords:['flashcards','study','spaced repetition','quiz']},
+  {id:'t15', name:'Formative', category:'assess',
+    url:'https://www.formative.com/',
+    desc:'Assign live formative checks with rich items (draw, categorize, audio). See responses in real time, give targeted hints, and export standards mastery.',
+    keywords:['formative','live','standards','feedback']},
+  {id:'t16', name:'Socrative', category:'assess',
+    url:'https://www.socrative.com/',
+    desc:'Room-based quizzes, exit tickets, and quick checks. Instant data visualizations help you pivot instruction in the moment.',
+    keywords:['quiz','exit ticket','live','data']},
+  {id:'t17', name:'Edpuzzle', category:'assess',
+    url:'https://edpuzzle.com/',
+    desc:'Embed questions inside videos and auto-grade. Track who watched which segments and where comprehension dips for targeted reteach.',
+    keywords:['video','questions','autograde','engagement']},
+
+  /* Differentiation / Labs */
+  {id:'t20', name:'Khan Academy (Practice)', category:'diff',
+    url:'https://www.khanacademy.org/',
+    desc:'Assign practice that adapts to student performance, with instant feedback and mastery paths across math, science, and more.',
+    keywords:['practice','adaptive','mastery','math','science']},
+  {id:'t21', name:'PhET Simulations', category:'diff',
+    url:'https://phet.colorado.edu/',
+    desc:'Interactive science and math sims for inquiry-based learning. Let students manipulate variables, visualize phenomena, and test hypotheses safely.',
+    keywords:['simulation','science','math','inquiry','lab']},
+  {id:'t22', name:'Desmos', category:'diff',
+    url:'https://www.desmos.com/',
+    desc:'Graphing, geometry, and activity builder with teacher dashboards. Build explorations, scaffold algebraic thinking, and monitor pacing.',
+    keywords:['graphing','geometry','activities','math']},
+  {id:'t23', name:'GeoGebra', category:'diff',
+    url:'https://www.geogebra.org/',
+    desc:'Dynamic math software for visualization and discovery. Create interactive applets for everything from transformations to calculus.',
+    keywords:['math','geometry','algebra','visualization']},
+  {id:'t24', name:'Eduaide.AI', category:'diff',
+    url:'https://www.eduaide.ai/',
+    desc:'Generate leveled materials, graphic organizers, and choice boards. Tailor complexity, language, and supports for every learner.',
+    keywords:['differentiation','organizers','leveled','supports']},
+  {id:'t25', name:'Code.org', category:'diff',
+    url:'https://code.org/',
+    desc:'Free CS curriculum with block and text coding. Self-paced courses, unplugged activities, and teacher dashboards for progress.',
+    keywords:['coding','cs','curriculum','block','text']},
+  {id:'t26', name:'Phonics Hero (Free trial)', category:'diff',
+    url:'https://www.phonicshero.com/',
+    desc:'Systematic phonics practice games to reinforce decoding skills. Progress adapts to student performance to maintain just-right challenge.',
+    keywords:['phonics','literacy','reading','practice']},
+
+  /* Integrity (Detectors & Plagiarism) — will show warning before opening */
+  {id:'t30', name:'Grammarly Plagiarism Checker', category:'integrity',
+    url:'https://www.grammarly.com/plagiarism-checker',
+    desc:'Scan drafts against billions of pages, academic sources, and institutional repositories. Use reports as a conversation starter, not a verdict.',
+    keywords:['plagiarism','writing','checker','report'], detector:true},
+  {id:'t31', name:'Copyleaks (AI & Plagiarism)', category:'integrity',
+    url:'https://copyleaks.com/ai-content-detector',
+    desc:'Detect possible AI-generated text and overlaps with web content. Provides probabilities, comparisons, and API options for LMS workflows.',
+    keywords:['ai detector','plagiarism','originality','compare'], detector:true},
+  {id:'t32', name:'Scribbr AI Detector', category:'integrity',
+    url:'https://www.scribbr.com/ai-detector/',
+    desc:'Academic-focused AI detection with readable explanations. Use alongside drafts, outlines, and conferences for due process.',
+    keywords:['ai detector','academia','false positives'], detector:true},
+  {id:'t33', name:'Sapling AI Detector', category:'integrity',
+    url:'https://sapling.ai/ai-content-detector',
+    desc:'Quickly flag likely AI passages with sentence-level markers. A helpful first pass when reviewing inbox floods.',
+    keywords:['ai detector','flag','sentences'], detector:true},
+  {id:'t34', name:'ZeroGPT', category:'integrity',
+    url:'https://www.zerogpt.com/',
+    desc:'A widely used AI-content detector. Treat outputs as signals to investigate rather than conclusive proof.',
+    keywords:['ai detector','risk','check'], detector:true},
+  {id:'t35', name:'Turnitin (Info)', category:'integrity',
+    url:'https://www.turnitin.com/',
+    desc:'Institution-grade similarity checking and AI detection (availability varies by license). Consult your admin for access.',
+    keywords:['similarity','institution','ai detection'], detector:true},
+
+  /* Creation & LLMs */
+  {id:'t40', name:'ChatGPT Free (OpenAI)', category:'create',
+    url:'https://chat.openai.com/',
+    desc:'Draft rubrics, explanations, exemplars, and parent emails. Ask for multiple reading levels, language variants, and scaffolded hints.',
+    keywords:['llm','chatgpt','writing','explanations','scaffolds']},
+  {id:'t41', name:'Google Gemini', category:'create',
+    url:'https://gemini.google.com/',
+    desc:'Google’s multimodal assistant for brainstorming, rewriting, and image understanding. Great with Drive files and Slides context.',
+    keywords:['llm','gemini','google','multimodal']},
+  {id:'t42', name:'Claude (Anthropic)', category:'create',
+    url:'https://claude.ai/',
+    desc:'Careful, long-context writing partner. Summarize long docs, craft nuanced feedback, and generate Socratic prompts.',
+    keywords:['llm','claude','summarize','writing']},
+  {id:'t43', name:'Perplexity', category:'create',
+    url:'https://www.perplexity.ai/',
+    desc:'Research answers with cited sources. Great for building resource lists, quick fact checks, and starting points for lessons.',
+    keywords:['llm','research','citations','sources']},
+  {id:'t44', name:'Microsoft Copilot', category:'create',
+    url:'https://copilot.microsoft.com/',
+    desc:'Ask for outlines, sample questions, or variations of tasks. Integrates with Edge, Word, and PowerPoint for in-flow authoring.',
+    keywords:['llm','copilot','microsoft','outlines']},
+  {id:'t45', name:'Bing Image Creator (DALL·E)', category:'create',
+    url:'https://www.bing.com/images/create',
+    desc:'Generate classroom-safe illustrations and diagrams from prompts. Perfect for custom icons, scene examples, and anchor visuals.',
+    keywords:['image','dalle','illustration','visuals']},
+  {id:'t46', name:'Adobe Express (Firefly)', category:'create',
+    url:'https://www.adobe.com/express/',
+    desc:'Create posters, banners, and flyers with Firefly generative fill. Classroom-safe content filters and easy exports.',
+    keywords:['image','poster','banner','firefly']},
+  {id:'t47', name:'Canva Text-to-Image', category:'create',
+    url:'https://www.canva.com/ai-image-generator/',
+    desc:'Generate images directly inside Canva designs to match your slide themes and worksheet styles.',
+    keywords:['image','generator','canva','slides']},
+  {id:'t48', name:'Ideogram', category:'create',
+    url:'https://ideogram.ai/',
+    desc:'Text-accurate image generation (great for classroom posters and vocabulary visuals). Use style presets for consistent sets.',
+    keywords:['image','text','poster','visuals']},
+  {id:'t49', name:'Leonardo AI', category:'create',
+    url:'https://leonardo.ai/',
+    desc:'High-quality image generation with training sets and model variations. Build coherent character or diagram series for units.',
+    keywords:['image','leonardo','consistency','series']},
+  {id:'t50', name:'Tome', category:'create',
+    url:'https://tome.app/',
+    desc:'Narrative presentations generated from prompts. Combine text, video, and interactive embeds for story-driven lessons.',
+    keywords:['slides','story','presentations','ai']},
+];
+
+/* ====================== AI Do’s & Don’ts card (static content) ====================== */
+const AI_GUIDE_CARD = {
+  id:'ai-guide',
+  name:'AI Do’s & Don’ts (Read Me)',
+  category:'integrity',
+  url:null,
+  desc:'',
+  keywords:['guidelines','policy','dos and donts'],
+  ai:true,
+  special:'guide'
+};
+const AI_GUIDE_HTML = `
+  <div style="display:grid; gap:10px;">
+    <div class="badge">Guidelines</div>
+    <h3 style="margin-top:-4px">how to use AI responsibly</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div style="border:1px solid rgba(34,197,94,.35); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(34,197,94,.12), rgba(34,197,94,.06));">
+        <strong>Do</strong>
+        <ul style="margin:8px 0 0 18px; line-height:1.5;">
+          <li>Use AI only if your teacher says it's okay</li>
+          <li>Use AI if it's part of a special plan your teacher or school approved</li>
+          <li>Say if you got help from AI (if your teacher allows it)</li>
+          <li>Ask your teacher before using AI to help with schoolwork</li>
+          <li>Keep track of your drafts and how you worked on the assignment</li>
+          <li>Use AI the way your teacher shows you, step by step</li>
+        </ul>
+      </div>
+      <div style="border:1px solid rgba(239,68,68,.35); border-radius:12px; padding:10px; background:linear-gradient(180deg, rgba(239,68,68,.12), rgba(239,68,68,.06));">
+        <strong>Don't</strong>
+        <ul style="margin:8px 0 0 18px; line-height:1.5;">
+          <li>Don't use AI for homework or tests unless you have permission</li>
+          <li>Don't copy and paste from AI and turn it in as your own work</li>
+          <li>Don't pretend AI's ideas or words are your own</li>
+          <li>Don't use AI to write part or all of your assignment unless allowed</li>
+          <li>Don't turn in something AI wrote ahead of time or that you used before</li>
+          <li>Don't use AI during a quiz or test without permission</li>
+        </ul>
+      </div>
+    </div>
+    <div class="gen-footer">use AI as a helper, not a shortcut</div>
+  </div>
+`;
+
+/* ============== State ============== */
+const state = {
+  activeTab: 'favorites',
+  pendingDetectorUrl: null,
+  favorites: new Set(JSON.parse(localStorage.getItem('binder-favs')||'[]')),
+  query: ''
+};
+
+/* ============== DOM refs ============== */
+const binder = document.getElementById('binder');
+const panels = {
+  favorites: document.getElementById('panel-favorites'),
+  plan: document.getElementById('panel-plan'),
+  assess: document.getElementById('panel-assess'),
+  diff: document.getElementById('panel-diff'),
+  integrity: document.getElementById('panel-integrity'),
+  create: document.getElementById('panel-create'),
+};
+const grids = {
+  favorites: document.getElementById('grid-favorites'),
+  plan: document.getElementById('grid-plan'),
+  assess: document.getElementById('grid-assess'),
+  diff: document.getElementById('grid-diff'),
+  integrity: document.getElementById('grid-integrity'),
+  create: document.getElementById('grid-create'),
+};
+const searchInput = document.getElementById('searchInput');
+const warnWrap = document.getElementById('warnWrap');
+const warnClose = document.getElementById('warnClose');
+const warnContinue = document.getElementById('warnContinue');
+const cursorEl = document.getElementById('cursor');
+
+const searchOverlay = document.getElementById('searchOverlay');
+const overlaySearch = document.getElementById('overlaySearch');
+const overlayClose = document.getElementById('overlayClose');
+const soFilters = document.getElementById('soFilters');
+const soResults = document.getElementById('soResults');
+
+/* ============== Build UI ============== */
+function buildAll(){
+  renderTabs();
+  renderPanels();
+  applySearch(); // initial
+}
+
+function renderTabs(){
+  const tabEls = binder.querySelectorAll('.tab');
+  tabEls.forEach((t)=>{
+    const key = t.dataset.tab;
+    t.classList.toggle('active', key===state.activeTab);
+    t.onclick = ()=>{ setActiveTab(key); };
+  });
+}
+
+function setActiveTab(key){
+  if(state.activeTab===key) return;
+  state.activeTab = key;
+  Object.keys(panels).forEach(k=>{
+    panels[k].classList.toggle('active', k===key);
+  });
+  renderTabs();
+  applySearch();
+  window.scrollTo({top: binder.getBoundingClientRect().top + window.scrollY - 8, behavior:'smooth'});
+}
+
+function renderPanels(){
+  Object.values(grids).forEach(g=>g.innerHTML='');
+
+  // build lists by category
+  const map = {
+    favorites: tools.filter(t=>state.favorites.has(t.id) || t.special==='guide'), // always show guide in favorites? nope—only in integrity. keep favorites clean.
+    plan: tools.filter(t=>t.category==='plan'),
+    assess: tools.filter(t=>t.category==='assess'),
+    diff: tools.filter(t=>t.category==='diff'),
+    integrity: tools.filter(t=>t.category==='integrity'),
+    create: tools.filter(t=>t.category==='create'),
+  };
+
+  // favorites grid = only favorited tools (if none, show empty state)
+  grids.favorites.innerHTML = '';
+  const favList = tools.filter(t=>state.favorites.has(t.id));
+  if(favList.length===0){
+    const empty = document.createElement('div');
+    empty.style.cssText='opacity:.9; padding:20px; border:1px dashed rgba(255,255,255,.2); border-radius:14px;';
+    empty.innerHTML = 'no favorites yet — tap ☆ on a card to pin it here.';
+    grids.favorites.appendChild(empty);
+  } else {
+    favList.forEach(t=>grids.favorites.appendChild(createCard(t)));
+  }
+
+  // regular categories
+  Object.entries(map).forEach(([cat,list])=>{
+    if(cat==='favorites') return;
+    // inject AI guide card only in integrity
+    if(cat==='integrity'){
+      const guideCard = createGuideCard();
+      grids.integrity.appendChild(guideCard);
+    }
+    list.forEach(t=>{
+      const card = createCard(t);
+      grids[cat].appendChild(card);
+    });
+  });
+  reflectFavs();
+}
+
+function createGuideCard(){
+  const el = document.createElement('article');
+  el.className = 'card';
+  el.innerHTML = AI_GUIDE_HTML;
+  el.style.minHeight = 'auto';
+  el.querySelectorAll('li').forEach(li=>li.setAttribute('role','listitem'));
+  return el;
+}
+
+function createCard(t){
+  const el = document.createElement('article');
+  el.className = 'card';
+  el.setAttribute('tabindex','0');
+
+  const fav = document.createElement('button');
+  fav.className='fav';
+  fav.title = state.favorites.has(t.id)?'Unpin from favorites':'Pin to favorites';
+  fav.innerHTML = state.favorites.has(t.id) ? '★' : '☆';
+  fav.addEventListener('click',(e)=>{ e.stopPropagation(); toggleFav(t.id, fav); });
+
+  const badge = document.createElement('span'); badge.className='badge';
+  badge.innerText = niceCategory(t.category);
+
+  const h = document.createElement('h3'); h.innerText = t.name;
+  const p = document.createElement('p'); p.innerText = t.desc;
+
+  const kws = document.createElement('div'); kws.className='kws';
+  kws.innerText = 'Keywords: ' + (t.keywords||[]).join(', ');
+
+  const tip = document.createElement('div'); tip.className='tip'; tip.innerText='Click to open';
+
+  const about = document.createElement('div'); about.className='about';
+
+  const act = document.createElement('div'); act.className='actions';
+  const aboutBtn = document.createElement('button'); aboutBtn.className='btn secondary'; aboutBtn.innerText='Details';
+  aboutBtn.addEventListener('click',(e)=>{ e.stopPropagation(); toggleAbout(about, t); });
+  act.appendChild(aboutBtn);
+
+  // click card -> open (detectors gated)
+  el.addEventListener('click', ()=>{
+    if(t.detector){
+      state.pendingDetectorUrl = t.url;
+      warnWrap.style.display='grid';
+      return;
+    }
+    window.open(t.url, '_blank', 'noopener,noreferrer');
+  });
+
+  // tilt parallax on move
+  el.addEventListener('mousemove',(e)=>{
+    const r=el.getBoundingClientRect();
+    const cx = (e.clientX - (r.left + r.width/2)) / (r.width/2);
+    const cy = (e.clientY - (r.top + r.height/2)) / (r.height/2);
+    el.style.transform = `translateY(-6px) rotateX(${ -cy*4 }deg) rotateY(${ cx*4 }deg)`;
+  });
+  el.addEventListener('mouseleave', ()=>{ el.style.transform=''; });
+
+  el.appendChild(fav);
+  el.appendChild(badge);
+  el.appendChild(h);
+  el.appendChild(p);
+  el.appendChild(kws);
+  el.appendChild(act);
+  el.appendChild(about);
+  el.appendChild(tip);
+  return el;
+}
+
+function toggleAbout(aboutEl, tool){
+  if(aboutEl.style.display==='block'){ aboutEl.style.display='none'; aboutEl.innerHTML=''; return; }
+  aboutEl.style.display='block';
+  const delay = 400 + Math.floor(Math.random()*900);
+  aboutEl.innerHTML = `<div style="display:flex; gap:6px; align-items:center;"><span>…</span><span>loading preview</span></div>`;
+  setTimeout(()=>{
+    aboutEl.innerHTML = `<p>${tool.desc}</p><div class="gen-footer">auto-generated preview</div>`;
+  }, delay);
+}
+
+function toggleFav(id, btn){
+  if(state.favorites.has(id)){ state.favorites.delete(id); btn.innerHTML='☆'; btn.classList.remove('active'); }
+  else { state.favorites.add(id); btn.innerHTML='★'; btn.classList.add('active'); }
+  btn.title = state.favorites.has(id)?'Unpin from favorites':'Pin to favorites';
+  localStorage.setItem('binder-favs', JSON.stringify(Array.from(state.favorites)));
+  // update favorites grid live
+  if(state.activeTab==='favorites'){ renderPanels(); }
+}
+
+function reflectFavs(){
+  document.querySelectorAll('.card').forEach(c=>{
+    const name = c.querySelector('h3')?.innerText;
+    const tool = tools.find(t=>t.name===name);
+    if(!tool) return;
+    const fav = c.querySelector('.fav');
+    if(state.favorites.has(tool.id)){ fav.innerHTML='★'; fav.classList.add('active'); }
+    else { fav.innerHTML='☆'; fav.classList.remove('active'); }
+  });
+}
+
+function niceCategory(c){
+  return ({
+    plan:'Planning',
+    assess:'Assessment',
+    diff:'Differentiation',
+    integrity:'Integrity',
+    create:'Creation',
+    favorites:'Favorites'
+  }[c] || c);
+}
+
+/* ============== Search Overlay Logic (global, then filter) ============== */
+function openSearch(){
+  searchOverlay.classList.add('active');
+  binder.style.display='none';
+  overlaySearch.value = state.query;
+  overlaySearch.focus();
+  buildFilterChips();
+  runOverlaySearch();
+}
+function closeSearch(){
+  searchOverlay.classList.remove('active');
+  binder.style.display='';
+}
+function buildFilterChips(){
+  soFilters.innerHTML='';
+  const cats = ['all','favorites','plan','assess','diff','integrity','create'];
+  const current = sessionStorage.getItem('so-cat') || 'all';
+  cats.forEach(cat=>{
+    const chip = document.createElement('button');
+    chip.className='chip' + (cat===current?' active':'');
+    chip.innerText = cat;
+    chip.addEventListener('click', ()=>{
+      sessionStorage.setItem('so-cat', cat);
+      buildFilterChips();
+      runOverlaySearch();
+    });
+    soFilters.appendChild(chip);
+  });
+}
+function runOverlaySearch(){
+  const q = overlaySearch.value.trim().toLowerCase();
+  const filter = sessionStorage.getItem('so-cat') || 'all';
+  soResults.innerHTML='';
+  let list = tools.slice();
+
+  // category filter AFTER search
+  if(filter==='favorites'){ list = list.filter(t=>state.favorites.has(t.id)); }
+  else if(filter!=='all'){ list = list.filter(t=>t.category===filter); }
+
+  // match query
+  const matched = list.filter(t=>{
+    if(!q) return true;
+    const hay = (t.name+' '+(t.desc||'')+' '+(t.keywords||[]).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+  if(matched.length===0){
+    const empty = document.createElement('div');
+    empty.style.cssText='opacity:.9; padding:20px; border:1px dashed rgba(255,255,255,.2); border-radius:14px;';
+    empty.innerHTML = 'no results. tweak your keywords or change the filter.';
+    soResults.appendChild(empty);
+    return;
+  }
+  matched.forEach(t=>soResults.appendChild(createCard(t)));
+  reflectFavs();
+}
+
+/* tie topbar search to overlay */
+searchInput.addEventListener('focus', openSearch);
+searchInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ openSearch(); }});
+document.addEventListener('keydown',(e)=>{ if(e.key==='/' && document.activeElement!==overlaySearch){ e.preventDefault(); openSearch(); }});
+overlayClose.addEventListener('click', closeSearch);
+overlaySearch.addEventListener('input', ()=>{ state.query = overlaySearch.value; runOverlaySearch(); });
+searchOverlay.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeSearch(); }});
+
+/* ============== Detector Warning ============== */
+warnClose.onclick = ()=>{ state.pendingDetectorUrl=null; warnWrap.style.display='none'; };
+warnContinue.onclick = ()=>{ if(state.pendingDetectorUrl){ window.open(state.pendingDetectorUrl,'_blank','noopener,noreferrer'); } warnWrap.style.display='none'; state.pendingDetectorUrl=null; };
+warnWrap.addEventListener('click',(e)=>{ if(e.target===warnWrap){ warnWrap.style.display='none'; state.pendingDetectorUrl=null; }});
+
+/* ============== Morphing Cursor Behavior ============== */
+let mx=0,my=0;
+window.addEventListener('mousemove',(e)=>{
+  mx=e.clientX; my=e.clientY;
+  cursorEl.style.left = mx+'px';
+  cursorEl.style.top = my+'px';
+  const hoverEl = document.elementFromPoint(mx,my);
+  let mode='pointer';
+  if(hoverEl){
+    const tag = hoverEl.tagName;
+    const isText = (tag==='INPUT'||tag==='TEXTAREA'||hoverEl.isContentEditable);
+    const isClickable = (tag==='BUTTON'||tag==='A'||hoverEl.closest('button')||hoverEl.closest('a'));
+    if(isText) mode='text';
+    else if(isClickable) mode='select';
+  }
+  cursorEl.setAttribute('data-mode', mode);
+});
+window.addEventListener('blur', ()=> cursorEl.classList.add('fade'));
+window.addEventListener('focus', ()=> cursorEl.classList.remove('fade'));
+
+/* ============== Init ============== */
+function applySearch(){ /* no-op for panel view; overlay handles global */ }
+function init(){
+  // inject AI guide into dataset for rendering
+  tools.push(AI_GUIDE_CARD);
+  renderTabs();
+  renderPanels();
+}
+init();
+</script>
+</body>
+</html>
